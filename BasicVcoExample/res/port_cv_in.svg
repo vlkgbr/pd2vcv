@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="8.4mm" height="8.4mm"
+     viewBox="0 0 8.4 8.4">
+  <!-- CV Input jack — light blue ring, black center -->
+  <circle cx="4.2" cy="4.2" r="3.8" fill="#6BB5E0" stroke="#4A8AB0" stroke-width="0.3"/>
+  <circle cx="4.2" cy="4.2" r="2.5" fill="#1A1A1A"/>
+  <circle cx="4.2" cy="4.2" r="1.2" fill="#0D0D0D"/>
+</svg>

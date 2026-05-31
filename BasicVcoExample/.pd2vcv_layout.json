@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "panel_hp": 8,
+  "positions": {
+    "FM_IN": {
+      "port_type": "cvi"
+    },
+    "PITCH_IN": {
+      "port_type": "cvi"
+    },
+    "OUT_1": {
+      "port_type": "audioo"
+    }
+  }
+}
