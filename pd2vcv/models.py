@@ -16,7 +16,7 @@ class HvParam:
     ui_type: str = ""       # "base" | "attenv" | "atten" | "" (plain)
     core_name: str = ""     # shared grouping name, e.g. "cutoff"
     adc_map: int = 0        # >0 means this param's column owns that adc~ input
-    dac_map: int = 0        # >0 means this [s] object labels that dac~ output in its column
+
     enum_label: str = ""    # overridden C++ enum label (stripped of prefix/suffix)
 
 

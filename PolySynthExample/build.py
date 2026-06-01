@@ -48,7 +48,7 @@ def auto_detect_hvcc_dir(default_dir):
         return "c"
     return default_dir
 
-def _interactive_layout(base_cmd, cache_path, script_dir, prompt_positions=True, prompt_ports=True):
+def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_ports=True):
     """
     Two-pass layout: run generator with --dump-layout to get auto positions,
     present them to the user for override in two steps, and save to cache file.
@@ -394,11 +394,11 @@ def main():
                 print("  Using saved layout configurations.\n")
             else:
                 # Re-enter interactive mode: dump layout, prompt, save
-                _interactive_layout(generator_cmd, layout_cache_path, SCRIPT_DIR, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
+                _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
                 generator_cmd.extend(["--layout-file", str(layout_cache_path)])
         elif not layout_cache_path.exists():
             # First time: dump layout, prompt, save
-            _interactive_layout(generator_cmd, layout_cache_path, SCRIPT_DIR, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
+            _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])
         else:
             # Non-interactive with cache: just use it

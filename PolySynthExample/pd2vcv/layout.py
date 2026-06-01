@@ -1,6 +1,6 @@
 import math
 import re
-from typing import List, Tuple, Dict, Any, Optional
+from typing import List, Tuple, Dict, Optional
 from pathlib import Path
 
 from pd2vcv.models import ComponentPos, PatchInfo, HvParam, CustomWidgets, _UI_PREFIXES

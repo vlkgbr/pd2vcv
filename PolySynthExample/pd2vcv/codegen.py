@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Tuple
 from pathlib import Path
-import xml.etree.ElementTree as ET
+
 
 from pd2vcv.models import ComponentPos, PatchInfo, HvParam, CustomWidgets, _UI_PREFIXES, HeavyApi
 from pd2vcv.utils import _enum_body, _send_call, _param_label

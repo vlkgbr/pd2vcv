@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
-     width="7.0mm" height="7.0mm"
-     viewBox="0 0 7.0 7.0">
-  <!-- Trigger (pressed) — depressed red button -->
-  <circle cx="3.5" cy="3.5" r="3.0" fill="#2A2A2A" stroke="#222222" stroke-width="0.5"/>
-  <circle cx="3.5" cy="3.5" r="2.0" fill="#A03030"/>
-  <circle cx="3.5" cy="3.5" r="1.4" fill="#CC5050"/>
-</svg>
