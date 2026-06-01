@@ -11,6 +11,7 @@ import shutil
 import platform
 import argparse
 import subprocess
+import re
 from pathlib import Path
 
 # ── Config block (edit these, same as before) ─────────────────────────────────
@@ -37,15 +38,15 @@ def auto_detect_pd_file(default_file):
     if pd_dir.exists() and pd_dir.is_dir():
         pd_files = list(pd_dir.glob("*.pd"))
         if len(pd_files) == 1:
-            return str(pd_files[0])
+            return str(pd_files[0].resolve())
     return default_file
 
 
 def auto_detect_hvcc_dir(default_dir):
-    if Path("output_directory").exists() and Path("output_directory").is_dir():
-        return "output_directory"
     if Path("c").exists() and Path("c").is_dir():
         return "c"
+    if Path("output_directory").exists() and Path("output_directory").is_dir():
+        return "output_directory"
     return default_dir
 
 def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_ports=True):
@@ -55,36 +56,29 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
     """
     _VALID_PORT_TYPES = {"cvi", "cvo", "audioi", "audioo", "inl", "inr", "outl", "outr"}
 
-    dump_cmd = base_cmd + ["--dump-layout"]
+    dump_file = Path(".pd2vcv_dump.json").resolve()
+    dump_cmd = base_cmd + ["--dump-layout-file", str(dump_file)]
     print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("  Generating auto-layout for interactive placement...")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     try:
-        result = subprocess.run(dump_cmd, capture_output=True, text=True, check=True)
+        subprocess.run(dump_cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"  ERROR: Layout dump failed (exit {e.returncode})")
-        print(f"  stderr: {e.stderr}")
         sys.exit(1)
 
-    # Find the JSON block in stdout (may be mixed with log lines)
-    json_str = ""
-    for line in result.stdout.split("\n"):
-        line = line.strip()
-        if line.startswith("{"):
-            json_start = result.stdout.index(line)
-            json_str = result.stdout[json_start:]
-            break
-
-    if not json_str:
-        print("  ERROR: Could not find layout JSON in generator output.")
-        print(f"  stdout was: {result.stdout[:500]}")
+    if not dump_file.exists():
+        print("  ERROR: Could not find layout JSON dump file.")
         sys.exit(1)
 
     try:
-        layout_data = json.loads(json_str)
+        layout_data = json.loads(dump_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         print(f"  ERROR: Invalid layout JSON: {e}")
         sys.exit(1)
+    finally:
+        if dump_file.exists():
+            dump_file.unlink()
 
     components = layout_data.get("components", [])
     panel_hp = layout_data.get("panel_hp", 10)
@@ -190,7 +184,10 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
                 except ValueError:
                     print(f"    ⚠ Invalid input '{val}'. Try again or press Enter to skip.")
             else:
-                print(f"    ⚠ Invalid type '{val}'. Try again or press Enter to skip.")
+                if prompt_ports and not prompt_positions:
+                    print(f"    ⚠ Invalid type '{val}'. Try again or press Enter to skip.")
+                else:
+                    print(f"    ⚠ Invalid input '{val}'. Try again or press Enter to skip.")
 
     # Save to cache
     cache_data = {
@@ -271,8 +268,13 @@ def main():
             print("\n  [BLOCK_SIZE]: DSP processing block size.")
             print("  - 64 is the recommended default for stable CPU.")
             print("  - 1 provides minimal latency (1 sample), great for feedback loops, but uses much more CPU.")
-            val = prompt_with_default("  Block Size", str(BLOCK_SIZE))
-            args.block_size = int(val)
+            while True:
+                val = prompt_with_default("  Block Size", str(BLOCK_SIZE))
+                try:
+                    args.block_size = int(val)
+                    break
+                except ValueError:
+                    print(f"    ⚠ Block size must be an integer. Got '{val}'. Try again.")
         if args.ui_text == UI_TEXT:
             print("\n  [UI_TEXT]: Generate C++ text labels for your panel? (yes / no)")
             print("  - 'yes' automatically draws the module name and port labels in C++.")
@@ -303,9 +305,26 @@ def main():
         version = version or VERSION
         license_str = license_str or LICENSE
 
+    module_name = module_name.strip()
+    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}', module_name):
+        print(f"ERROR: Module name '{module_name}' must be a valid C++ identifier (alphanumeric, no spaces, cannot start with number).")
+        sys.exit(1)
+        
+    plugin_slug = plugin_slug.strip()
+    if not re.fullmatch(r'[A-Za-z0-9_\-]{1,64}', plugin_slug):
+        print(f"ERROR: Plugin slug '{plugin_slug}' must be alphanumeric/underscore/hyphen, max 64 chars.")
+        sys.exit(1)
+        
+    version = version.strip()
+    if not version.startswith("2."):
+        print(f"ERROR: Version '{version}' must start with '2.' for VCV Rack 2. Aborting.")
+        sys.exit(1)
+
     SCRIPT_DIR = Path(__file__).parent.resolve()
-    HVCC_DIR = Path(args.hvcc_dir).resolve() if args.hvcc_dir else (SCRIPT_DIR / "c")
+    HVCC_DIR = Path(args.hvcc_dir).resolve() if args.hvcc_dir else (SCRIPT_DIR / auto_detect_hvcc_dir("c"))
     OUT_DIR = SCRIPT_DIR / "rack_plugin"
+    
+    # This path must match the C source directory expected by the generated Makefile template in pd2vcv/writer.py
     HVCC_SRC = "hvcc/c"
 
     # Rack SDK — absolute path required by the Makefile
@@ -327,8 +346,8 @@ def main():
             rack_platform = "mac-arm64"
         else:
             rack_platform = "mac-x64"
-        install_base = Path.home() / "Documents" / "Rack2" / f"plugins-{rack_platform}"
-    elif system == "Windows" or "MINGW" in system or "MSYS" in system:
+        install_base = Path.home() / "Library" / "Application Support" / "Rack2" / f"plugins-{rack_platform}"
+    elif system == "Windows" or os.environ.get("MSYSTEM", "").startswith("MINGW"):
         rack_platform = "win-x64"
         install_base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Rack2" / f"plugins-{rack_platform}"
     else:
@@ -338,16 +357,16 @@ def main():
     install_dir = install_base / plugin_slug
     
     # SAFETY CHECKS
-    if not plugin_slug or plugin_slug.strip() == "" or ".." in plugin_slug:
-        print(f"ERROR: Invalid plugin slug '{plugin_slug}'. Aborting to prevent accidental deletion.")
-        sys.exit(1)
-        
     if install_dir.resolve() == install_base.resolve() or install_dir.resolve() == install_base.parent.resolve():
         print(f"ERROR: Install dir resolved to base directory '{install_dir}'. Aborting.")
         sys.exit(1)
         
     if OUT_DIR.resolve() == SCRIPT_DIR.resolve() or OUT_DIR.resolve() == Path("/").resolve():
         print(f"ERROR: OUT_DIR resolved dangerously to '{OUT_DIR}'. Aborting.")
+        sys.exit(1)
+        
+    if not str(OUT_DIR.resolve()).startswith(str(SCRIPT_DIR.resolve())):
+        print(f"ERROR: OUT_DIR '{OUT_DIR}' is outside project directory. Aborting.")
         sys.exit(1)
 
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -376,8 +395,10 @@ def main():
         "--block-size", str(args.block_size)
     ]
 
-    # Always pass res/ folder
-    generator_cmd.extend(["--res-dir", str(SCRIPT_DIR / "res")])
+    # Only pass res/ folder if it exists
+    res_dir = SCRIPT_DIR / "res"
+    if res_dir.is_dir():
+        generator_cmd.extend(["--res-dir", str(res_dir)])
 
     # ── Custom Layout: two-pass generation ─────────────────────────────────────
     layout_cache_path = SCRIPT_DIR / ".pd2vcv_layout.json"
@@ -385,24 +406,34 @@ def main():
     use_custom_ports  = args.custom_ports.lower() in ("yes", "y")
 
     if use_custom_layout or use_custom_ports:
-        # Check for cached layout
-        if layout_cache_path.exists() and not args.non_interactive:
+        cache_valid = False
+        if layout_cache_path.exists():
+            try:
+                cached = json.loads(layout_cache_path.read_text(encoding="utf-8"))
+                if cached.get("version", 1) >= 2:
+                    cache_valid = True
+                else:
+                    print("  ⚠ Layout cache is outdated (v1). It will be regenerated.")
+            except (json.JSONDecodeError, OSError):
+                print("  ⚠ Layout cache is corrupted. It will be regenerated.")
+
+        if cache_valid and not args.non_interactive:
             print(f"\n  Found saved layout ({layout_cache_path.name}).")
             reuse = prompt_with_default("  Use saved layout/types?", "yes")
             if reuse.lower() in ("yes", "y"):
                 generator_cmd.extend(["--layout-file", str(layout_cache_path)])
                 print("  Using saved layout configurations.\n")
             else:
-                # Re-enter interactive mode: dump layout, prompt, save
                 _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
                 generator_cmd.extend(["--layout-file", str(layout_cache_path)])
-        elif not layout_cache_path.exists():
-            # First time: dump layout, prompt, save
+        elif not cache_valid and not args.non_interactive:
             _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])
-        else:
-            # Non-interactive with cache: just use it
+        elif cache_valid and args.non_interactive:
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])
+        else:
+            print("ERROR: Stale or invalid layout cache in non-interactive mode. Aborting.")
+            sys.exit(1)
 
     print(f"Running generator: {' '.join(generator_cmd)}\n")
     try:
@@ -422,6 +453,8 @@ def main():
     actual_c_dir = HVCC_DIR / "c" if (HVCC_DIR / "c").is_dir() else HVCC_DIR
 
     for item in actual_c_dir.iterdir():
+        if item.is_symlink():
+            continue
         if item.is_file():
             shutil.copy2(item, hvcc_dest)
         elif item.is_dir():
@@ -431,8 +464,11 @@ def main():
     print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"  make  (RACK_DIR={RACK_DIR})")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    if not RACK_DIR.is_dir():
+        print(f"ERROR: Rack-SDK not found at '{RACK_DIR}'. Download from vcvrack.com/downloads.")
+        sys.exit(1)
     try:
-        subprocess.run(["make", "-C", str(OUT_DIR)], check=True)
+        subprocess.run(["make", "-C", str(OUT_DIR), f"RACK_DIR={RACK_DIR}"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Make failed with error code {e.returncode}")
         sys.exit(1)
@@ -460,9 +496,22 @@ def main():
     if json_src.exists():
         shutil.copy2(json_src, install_dir)
 
+    installed_bins = [pf for pf in plugin_files if (install_dir / pf).exists()]
+    if not installed_bins:
+        print("ERROR: No plugin binary found after build. Check make output.")
+        sys.exit(1)
+    if not (install_dir / "plugin.json").exists():
+        print("ERROR: plugin.json missing after build.")
+        sys.exit(1)
+
     # Copy SVG resources
-    for res_file in (OUT_DIR / "res").glob("*.svg"):
+    source_svgs = list((OUT_DIR / "res").glob("*.svg"))
+    for res_file in source_svgs:
         shutil.copy2(res_file, install_dir / "res")
+
+    installed_svgs = list((install_dir / "res").glob("*.svg"))
+    if len(installed_svgs) != len(source_svgs):
+        print(f"  ⚠ WARNING: SVG count mismatch. Source: {len(source_svgs)}, Installed: {len(installed_svgs)}")
 
     print("\n  ✓ Done. Restart VCV Rack 2 to load plugin.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")

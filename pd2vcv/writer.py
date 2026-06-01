@@ -53,8 +53,8 @@ def main() -> None:
                     help="Generate UI text labels in C++ (default: yes)")
     ap.add_argument("--polyphony",   choices=["yes", "no", "y", "n"], default="no",
                     help="Generate 16-voice polyphonic support (default: no)")
-    ap.add_argument("--dump-layout", action="store_true",
-                    help="Print auto-layout as JSON to stdout and exit without writing files. "
+    ap.add_argument("--dump-layout-file", default=None,
+                    help="Path to save auto-layout JSON. If provided, writes layout to this file and exits. "
                          "Used by build.py for interactive placement.")
     ap.add_argument("--layout-file", default=None,
                     help="Path to a .pd2vcv_layout.json file with saved position overrides.")
@@ -139,7 +139,7 @@ def main() -> None:
         print("[layout] Stereo output detected from jack type overrides")
 
     # ── Dump layout as JSON and exit (used by build.py for interactive placement)
-    if args.dump_layout:
+    if args.dump_layout_file:
         layout_dump = {
             "version": 2,
             "panel_hp": panel_hp,
@@ -157,7 +157,9 @@ def main() -> None:
                 for c in components
             ],
         }
-        print(json.dumps(layout_dump, indent=2))
+        dump_path = Path(args.dump_layout_file).resolve()
+        dump_path.write_text(json.dumps(layout_dump, indent=2) + "\n", encoding="utf-8")
+        print(f"[layout] Dumped layout to {dump_path}")
         return
 
     # ── Generate files ────────────────────────────────────────────────────────
