@@ -249,6 +249,10 @@ def _addchild_lines(components: List[ComponentPos], mn: str, panel_hp: int,
                 label_y = c.y + 4.5 + 2.2
 
             ui_lbl = c.ui_label or c.label.replace("_", " ")
+            if ui_lbl.startswith("ATTENV "): ui_lbl = ui_lbl[7:]
+            elif ui_lbl.startswith("ATTEN "): ui_lbl = ui_lbl[6:]
+            elif ui_lbl.endswith(" ATTENV"): ui_lbl = ui_lbl[:-7]
+            elif ui_lbl.endswith(" ATTEN"): ui_lbl = ui_lbl[:-6]
             font_sz = "2.4f" if c.kind == "param" else "2.0f"
             pos_lbl = f"rack::mm2px(rack::Vec({c.x:.2f}f, {label_y:.2f}f))"
             lines.append(f'        addChild(new TextLabel({pos_lbl}, "{ui_lbl}", {font_sz}));')
@@ -637,6 +641,7 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
  */
 
 #include <cmath>
+#include <string>
 #include "plugin.hpp"
 // Heavy context — adjust path if your directory structure differs
 #include "{info.header_file}"

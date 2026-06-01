@@ -13,10 +13,10 @@ from pd2vcv.utils import sanitize_identifier, deduplicate_safe_names
 
 # Matches [r name @hv_param min max default] — input params (knobs / CV targets)
 _PD_PARAM_RE = re.compile(
-    r"r\s+(\S+)\s+@hv[._]param\s+"
-    r"([+-]?\d+\.?\d*)\s+"
-    r"([+-]?\d+\.?\d*)\s+"
-    r"([+-]?\d+\.?\d*)",
+    r"r\s+(\S+)\s+@hv[._]param"
+    r"(?:\s+([+-]?\d+\.?\d*))?"
+    r"(?:\s+([+-]?\d+\.?\d*))?"
+    r"(?:\s+([+-]?\d+\.?\d*))?",
     re.IGNORECASE,
 )
 
@@ -49,9 +49,9 @@ def parse_pd_params(pd_file: Path) -> tuple:
 
     for m in _PD_PARAM_RE.finditer(text):
         name    = m.group(1)
-        lo      = float(m.group(2))
-        hi      = float(m.group(3))
-        default = float(m.group(4))
+        lo      = float(m.group(2)) if m.group(2) else 0.0
+        hi      = float(m.group(3)) if m.group(3) else 1.0
+        default = float(m.group(4)) if m.group(4) else 0.5
         bounds[name] = (lo, hi, default)
         print(f"[pd]    {name:30s} min={lo}  max={hi}  default={default}")
 
