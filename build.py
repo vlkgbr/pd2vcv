@@ -297,7 +297,7 @@ def main():
             args.custom_ports = prompt_with_default("  Custom Ports", CUSTOM_PORTS)
         print("─────────────────────────────────────────────────────────────────────────────\n")
     else:
-        pd_file = pd_file or PD_FILE
+        pd_file = pd_file or auto_detect_pd_file(PD_FILE)
         module_name = module_name or MODULE_NAME
         plugin_slug = plugin_slug or PLUGIN_SLUG
         manufacturer = manufacturer or MANUFACTURER
