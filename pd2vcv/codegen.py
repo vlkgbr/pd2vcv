@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 from pd2vcv.models import ComponentPos, PatchInfo, HvParam, CustomWidgets, _UI_PREFIXES, HeavyApi
-from pd2vcv.utils import _enum_body, _send_call, _param_label
+from pd2vcv.utils import _enum_body, _param_label
 
 HP_MM = 5.08
 PANEL_H_MM = 128.5

@@ -224,12 +224,12 @@ def parse_from_header(header_path: Path) -> Tuple[List[HvParam], int, int]:
             add(m.group(3), m.group(2), direction)
 
     n_in, n_out = 2, 2
-    m = re.search(r"getNumInputChannels\s*\(\s*\)[^{]*\{\s*return\s*(\d+)", text)
-    if m:
-        n_in = int(m.group(1))
-    m = re.search(r"getNumOutputChannels\s*\(\s*\)[^{]*\{\s*return\s*(\d+)", text)
-    if m:
-        n_out = int(m.group(1))
+    match_in = re.search(r"getNumInputChannels\s*\(\s*\)[^{]*\{\s*return\s*(\d+)", text)
+    if match_in:
+        n_in = int(match_in.group(1))
+    match_out = re.search(r"getNumOutputChannels\s*\(\s*\)[^{]*\{\s*return\s*(\d+)", text)
+    if match_out:
+        n_out = int(match_out.group(1))
 
     return params, n_in, n_out
 
