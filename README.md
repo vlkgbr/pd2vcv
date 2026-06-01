@@ -11,7 +11,7 @@
 > - **VCV Rack:** v2.6.6 (SDK)
 
 `build.py` reads your hvcc-compiled PD patch, parses your parameter
-declarations, generates C++ wrapper code, builds `plugin.so`, and installs
+declarations, generates C++ wrapper code, builds `plugin.so` (or `.dll`/`.dylib`), and installs
 it into VCV Rack automatically.
 
 ---
