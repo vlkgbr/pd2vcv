@@ -48,7 +48,7 @@ If you want to see exactly how your files should be organized, check out the **`
 - **`PolySynthExample`**: Shows the structure for a **PlugData** export (with a flat `c/` directory).
 
 > [!IMPORTANT]
-> **Check your Rack-SDK!** The examples in this repository include the **Linux** VCV Rack SDK. If you are building on Windows or macOS, you **must** delete the `Rack-SDK` folder and replace it with the correct SDK for your operating system downloaded from [vcvrack.com/downloads](https://vcvrack.com/downloads). A Linux SDK will fail to compile on Windows/macOS.
+> **Install the Rack-SDK!** You must download the VCV Rack SDK for your operating system from [vcvrack.com/downloads](https://vcvrack.com/downloads). Extract it and place its contents inside the `Rack-SDK` folder in your project root.
 
 To build an example, live-navigate to one of the folders, open a terminal there, and run the generator:
 ```bash

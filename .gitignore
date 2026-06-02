@@ -13,3 +13,7 @@ rack_plugin/
 *.dylib
 *.o
 *.a
+
+# VCV Rack SDK
+Rack-SDK/*
+!Rack-SDK/put_os_specific_sdk_here.txt
