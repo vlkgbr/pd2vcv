@@ -16,7 +16,7 @@ from pathlib import Path
 
 # ── Config block (edit these, same as before) ─────────────────────────────────
 PD_FILE      = "./pd/mypatch.pd"
-MODULE_NAME  = "MyPatch"
+MODULE_NAME  = "MyModule"
 PLUGIN_SLUG  = "MyPlugin"
 MANUFACTURER = "YourName"
 AUTHOR       = "YourName"
@@ -49,7 +49,7 @@ def auto_detect_hvcc_dir(default_dir):
         return "output_directory"
     return default_dir
 
-def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_ports=True):
+def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_ports=True, menu_arg=None):
     """
     Two-pass layout: run generator with --dump-layout to get auto positions,
     present them to the user for override in two steps, and save to cache file.
@@ -83,13 +83,32 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
     components = layout_data.get("components", [])
     panel_hp = layout_data.get("panel_hp", 10)
 
-    controls = [c for c in components if c["kind"] == "param"]
+    controls = [c for c in components if c["kind"] == "param" and c.get("knob_type") != "CustomMenuWidget"]
+    menus    = [c for c in components if c["kind"] == "param" and c.get("knob_type") == "CustomMenuWidget"]
     jacks    = [c for c in components if c["kind"] in ("input", "output")]
 
     print(f"\n  Panel: {panel_hp} HP  ({panel_hp * 5.08:.1f} mm)")
-    print(f"  {len(controls)} control(s), {len(jacks)} jack(s) detected.")
+    print(f"  {len(controls)} control(s), {len(menus)} menu(s), {len(jacks)} jack(s) detected.")
 
     overrides = {}
+    menu_entries = {}
+
+    # Parse CLI --menu arg if provided: e.g. "MODE:Saw,Square,Tri;FREQ:1,2,3"
+    if menu_arg:
+        for group in menu_arg.split(";"):
+            if ":" in group:
+                k, v = group.split(":", 1)
+                k = k.strip().upper()
+                matched = k
+                for m in menus:
+                    if m["label"] == k or m["label"].replace("_MENU", "") == k.replace("MENU_", ""):
+                        matched = m["label"]
+                        break
+                menu_entries[matched] = [x.strip() for x in v.split(",")]
+            else:
+                # If only one menu exists, they can just pass the list
+                if len(menus) == 1:
+                    menu_entries[menus[0]["label"]] = [x.strip() for x in group.split(",")]
 
     # ── STEP 1: Controls ──────────────────────────────────────────────────────
     if prompt_positions:
@@ -99,7 +118,8 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         for c in controls:
             kt = c.get("knob_type", "").replace("Round", "").replace("Black", "").replace("VCV", "")
-            prompt = f"  {c['label']:20s} ({kt:15s}) [{c['x']:.1f}, {c['y']:.1f}]: "
+
+            prompt = f"  {c['label']:20s} ({kt:12s}) [{c['x']:.1f}, {c['y']:.1f}]: "
             while True:
                 val = input(prompt).strip()
                 if not val:
@@ -142,7 +162,8 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     for c in jacks:
         direction = "Input Jack" if c["kind"] == "input" else "Output Jack"
-        prompt = f"  {c['label']:20s} ({direction:12s}) [{c['x']:.1f}, {c['y']:.1f}]: "
+        ptype_hint = f" [{c.get('port_type')}]" if c.get('port_type') else " []"
+        prompt = f"  {c['label']:20s} ({direction:12s}) [{c['x']:.1f}, {c['y']:.1f}]{ptype_hint}: "
         while True:
             val = input(prompt).strip()
             if not val:
@@ -189,14 +210,39 @@ def _interactive_layout(base_cmd, cache_path, prompt_positions=True, prompt_port
                 else:
                     print(f"    ⚠ Invalid input '{val}'. Try again or press Enter to skip.")
 
+    # ── STEP 1.5: Menus ───────────────────────────────────────────────────────
+    if menus:
+        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("  Menu Content Configuration")
+        print("  Provide a label for each menu item.")
+        print("  Press [Enter] to use the default index number.")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for m in menus:
+            if m["label"] in menu_entries:
+                continue
+            print(f"\n  Configuring '{m['label']}':")
+            max_allowed = int(m.get("max", 0.0) - m.get("min", 0.0) + 1) if m.get("max", 0) > 0 else 0
+            if max_allowed <= 0:
+                print(f"    ⚠ Cannot determine number of items for {m['label']}, skipping.")
+                continue
+            
+            items = []
+            for i in range(1, max_allowed + 1):
+                val = input(f"    {i} - ").strip()
+                if not val:
+                    val = str(i)
+                items.append(val)
+            menu_entries[m["label"]] = items
+
     # Save to cache
     cache_data = {
         "version": 2,
         "panel_hp": panel_hp,
         "positions": overrides,
+        "menus": menu_entries,
     }
     cache_path.write_text(json.dumps(cache_data, indent=2) + "\n", encoding="utf-8")
-    print(f"\n  ✓ Saved {len(overrides)} override(s) to {cache_path.name}")
+    print(f"\n  ✓ Saved {len(overrides)} override(s) and {len(menu_entries)} menu config(s) to {cache_path.name}")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
 
@@ -221,6 +267,8 @@ def main():
                         help="Enable interactive component placement (yes/no).")
     parser.add_argument("--custom-ports", default=CUSTOM_PORTS, choices=["yes", "no", "y", "n"],
                         help="Enable interactive jack type configuration (yes/no).")
+    parser.add_argument("--menu", default=None,
+                        help="Pre-fill menu entries (e.g. 'Saw,Square,Tri' or 'MODE:1,2;LFO:a,b').")
     parser.add_argument("--non-interactive", action="store_true", help="Skip interactive prompts and use defaults/CLI flags")
     args = parser.parse_args()
 
@@ -297,7 +345,7 @@ def main():
             args.custom_ports = prompt_with_default("  Custom Ports", CUSTOM_PORTS)
         print("─────────────────────────────────────────────────────────────────────────────\n")
     else:
-        pd_file = pd_file or PD_FILE
+        pd_file = pd_file or auto_detect_pd_file(PD_FILE)
         module_name = module_name or MODULE_NAME
         plugin_slug = plugin_slug or PLUGIN_SLUG
         manufacturer = manufacturer or MANUFACTURER
@@ -424,10 +472,10 @@ def main():
                 generator_cmd.extend(["--layout-file", str(layout_cache_path)])
                 print("  Using saved layout configurations.\n")
             else:
-                _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
+                _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports, menu_arg=args.menu)
                 generator_cmd.extend(["--layout-file", str(layout_cache_path)])
         elif not cache_valid and not args.non_interactive:
-            _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports)
+            _interactive_layout(generator_cmd, layout_cache_path, prompt_positions=use_custom_layout, prompt_ports=use_custom_ports, menu_arg=args.menu)
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])
         elif cache_valid and args.non_interactive:
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])

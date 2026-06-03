@@ -9,6 +9,9 @@ HP_MM = 5.08
 PANEL_H_MM = 128.5
 def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = None) -> str:
     """Return the C++ widget class name for a component, using custom SVG structs when available."""
+    if c.kind == "param" and c.knob_type == "CustomMenuWidget":
+        return f"CustomMenuWidget_{c.label}"
+
     if custom_widgets is None:
         # No custom widgets — use built-in Rack widgets
         if c.kind == "param":
@@ -24,6 +27,7 @@ def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = N
             "RoundSmallBlackKnob": ("knob_small",   "CustomSmallKnob"),
             "Trimpot":             ("knob_trim",     "CustomTrimKnob"),
             "RoundBlackKnob":      ("knob_default",  "CustomDefaultKnob"),
+            "StepKnob":            ("step_knob",     "CustomStepKnob"),
             "VCVButton":           ("button",        "CustomButton"),
             "VCVTrigger":          ("trigger",       "CustomTrigger"),
             "CKSS":                ("_switch",       "CustomSwitch"),
@@ -36,6 +40,7 @@ def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = N
             elif getattr(custom_widgets, attr, False):
                 return custom_cls
         # Fallback: VCVTrigger -> VCVButton in Rack
+        if kt == "StepKnob": kt = "RoundBlackKnob"
         rack_kt = "VCVButton" if kt == "VCVTrigger" else kt
         return f"rack::{rack_kt}"
 
@@ -67,139 +72,246 @@ def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = N
     return "rack::PJ301MPort"
 
 
-def gen_custom_widget_structs(custom_widgets: Optional[CustomWidgets] = None) -> str:
+def gen_custom_widget_structs(custom_widgets: Optional[CustomWidgets] = None, menu_entries: Optional[Dict[str, List[str]]] = None) -> str:
     """Generate C++ struct definitions for custom SVG widgets."""
-    if custom_widgets is None:
+    if custom_widgets is None and not menu_entries:
         return ""
 
     structs: List[str] = []
 
     # ── Knobs ──
-    if custom_widgets.knob_large:
-        structs.append(
-            'struct CustomLargeKnob : rack::app::SvgKnob {\n'
-            '    CustomLargeKnob() {\n'
-            '        minAngle = -0.83 * M_PI;\n'
-            '        maxAngle = 0.83 * M_PI;\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_large.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.knob_small:
-        structs.append(
-            'struct CustomSmallKnob : rack::app::SvgKnob {\n'
-            '    CustomSmallKnob() {\n'
-            '        minAngle = -0.83 * M_PI;\n'
-            '        maxAngle = 0.83 * M_PI;\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_small.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.knob_trim:
-        structs.append(
-            'struct CustomTrimKnob : rack::app::SvgKnob {\n'
-            '    CustomTrimKnob() {\n'
-            '        minAngle = -0.83 * M_PI;\n'
-            '        maxAngle = 0.83 * M_PI;\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_trim.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.knob_default:
-        structs.append(
-            'struct CustomDefaultKnob : rack::app::SvgKnob {\n'
-            '    CustomDefaultKnob() {\n'
-            '        minAngle = -0.83 * M_PI;\n'
-            '        maxAngle = 0.83 * M_PI;\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_default.svg")));\n'
-            '    }\n'
-            '};'
-        )
+    if custom_widgets:
+        if custom_widgets.knob_large:
+            structs.append(
+                'struct CustomLargeKnob : rack::app::SvgKnob {\n'
+                '    CustomLargeKnob() {\n'
+                '        minAngle = -0.83 * M_PI;\n'
+                '        maxAngle = 0.83 * M_PI;\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_large.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.knob_small:
+            structs.append(
+                'struct CustomSmallKnob : rack::app::SvgKnob {\n'
+                '    CustomSmallKnob() {\n'
+                '        minAngle = -0.83 * M_PI;\n'
+                '        maxAngle = 0.83 * M_PI;\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_small.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.knob_trim:
+            structs.append(
+                'struct CustomTrimKnob : rack::app::SvgKnob {\n'
+                '    CustomTrimKnob() {\n'
+                '        minAngle = -0.83 * M_PI;\n'
+                '        maxAngle = 0.83 * M_PI;\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_trim.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.knob_default:
+            structs.append(
+                'struct CustomDefaultKnob : rack::app::SvgKnob {\n'
+                '    CustomDefaultKnob() {\n'
+                '        minAngle = -0.83 * M_PI;\n'
+                '        maxAngle = 0.83 * M_PI;\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/knob_default.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.step_knob:
+            structs.append(
+                'struct CustomStepKnob : rack::app::SvgKnob {\n'
+                '    CustomStepKnob() {\n'
+                '        minAngle = -0.83 * M_PI;\n'
+                '        maxAngle = 0.83 * M_PI;\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/step_knob.svg")));\n'
+                '    }\n'
+                '};'
+            )
 
-    # ── Buttons & triggers ──
-    if custom_widgets.button:
-        structs.append(
-            'struct CustomButton : rack::app::SvgSwitch {\n'
-            '    CustomButton() {\n'
-            '        momentary = true;\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/button.svg")));\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/button_pressed.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.trigger:
-        structs.append(
-            'struct CustomTrigger : rack::app::SvgSwitch {\n'
-            '    CustomTrigger() {\n'
-            '        momentary = true;\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/trigger.svg")));\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/trigger_pressed.svg")));\n'
-            '    }\n'
-            '};'
-        )
+        # ── Buttons & triggers ──
+        if custom_widgets.button:
+            structs.append(
+                'struct CustomButton : rack::app::SvgSwitch {\n'
+                '    CustomButton() {\n'
+                '        momentary = true;\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/button.svg")));\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/button_pressed.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.trigger:
+            structs.append(
+                'struct CustomTrigger : rack::app::SvgSwitch {\n'
+                '    CustomTrigger() {\n'
+                '        momentary = true;\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/trigger.svg")));\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/trigger_pressed.svg")));\n'
+                '    }\n'
+                '};'
+            )
 
-    # ── Switch ──
-    if custom_widgets.switch_on and custom_widgets.switch_off:
-        structs.append(
-            'struct CustomSwitch : rack::app::SvgSwitch {\n'
-            '    CustomSwitch() {\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/switch_off.svg")));\n'
-            '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/switch_on.svg")));\n'
-            '    }\n'
-            '};'
-        )
+        # ── Switch ──
+        if custom_widgets.switch_on and custom_widgets.switch_off:
+            structs.append(
+                'struct CustomSwitch : rack::app::SvgSwitch {\n'
+                '    CustomSwitch() {\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/switch_off.svg")));\n'
+                '        addFrame(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/switch_on.svg")));\n'
+                '    }\n'
+                '};'
+            )
 
-    # ── Ports (typed) ──
-    if custom_widgets.port_cv_in:
-        structs.append(
-            'struct CustomCvInputPort : rack::app::SvgPort {\n'
-            '    CustomCvInputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_cv_in.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.port_cv_out:
-        structs.append(
-            'struct CustomCvOutputPort : rack::app::SvgPort {\n'
-            '    CustomCvOutputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_cv_out.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.port_audio_in:
-        structs.append(
-            'struct CustomAudioInputPort : rack::app::SvgPort {\n'
-            '    CustomAudioInputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_audio_in.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.port_audio_out:
-        structs.append(
-            'struct CustomAudioOutputPort : rack::app::SvgPort {\n'
-            '    CustomAudioOutputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_audio_out.svg")));\n'
-            '    }\n'
-            '};'
-        )
+        # ── Ports (typed) ──
+        if custom_widgets.port_cv_in:
+            structs.append(
+                'struct CustomCvInputPort : rack::app::SvgPort {\n'
+                '    CustomCvInputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_cv_in.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.port_cv_out:
+            structs.append(
+                'struct CustomCvOutputPort : rack::app::SvgPort {\n'
+                '    CustomCvOutputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_cv_out.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.port_audio_in:
+            structs.append(
+                'struct CustomAudioInputPort : rack::app::SvgPort {\n'
+                '    CustomAudioInputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_audio_in.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.port_audio_out:
+            structs.append(
+                'struct CustomAudioOutputPort : rack::app::SvgPort {\n'
+                '    CustomAudioOutputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_audio_out.svg")));\n'
+                '    }\n'
+                '};'
+            )
 
-    # ── Ports (generic fallback) ──
-    if custom_widgets.port_in:
-        structs.append(
-            'struct CustomInputPort : rack::app::SvgPort {\n'
-            '    CustomInputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_in.svg")));\n'
-            '    }\n'
-            '};'
-        )
-    if custom_widgets.port_out:
-        structs.append(
-            'struct CustomOutputPort : rack::app::SvgPort {\n'
-            '    CustomOutputPort() {\n'
-            '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_out.svg")));\n'
-            '    }\n'
-            '};'
-        )
+        # ── Ports (generic fallback) ──
+        if custom_widgets.port_in:
+            structs.append(
+                'struct CustomInputPort : rack::app::SvgPort {\n'
+                '    CustomInputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_in.svg")));\n'
+                '    }\n'
+                '};'
+            )
+        if custom_widgets.port_out:
+            structs.append(
+                'struct CustomOutputPort : rack::app::SvgPort {\n'
+                '    CustomOutputPort() {\n'
+                '        setSvg(rack::Svg::load(rack::asset::plugin(pluginInstance, "res/port_out.svg")));\n'
+                '    }\n'
+                '};'
+            )
+
+    if menu_entries:
+        base_menu = '''
+struct CustomMenuWidget : rack::app::ParamWidget {
+    std::vector<std::string> entries;
+    
+    CustomMenuWidget() {
+        box.size = rack::mm2px(rack::Vec(18.0f, 5.0f));
+    }
+
+    void draw(const DrawArgs& args) override {
+        // Uniform grey appearance, independent of light/dark mode
+        NVGcolor bgColor = nvgRGBA(45, 45, 45, 255);
+        NVGcolor fgColor = nvgRGBA(230, 230, 230, 255);
+        
+        nvgBeginPath(args.vg);
+        nvgRoundedRect(args.vg, 0, 0, box.size.x, box.size.y, rack::mm2px(0.5f));
+        nvgFillColor(args.vg, bgColor);
+        nvgFill(args.vg);
+        
+        nvgStrokeWidth(args.vg, 0.5f);
+        nvgStrokeColor(args.vg, nvgRGBA(0, 0, 0, 255));
+        nvgStroke(args.vg);
+        
+        if (!getParamQuantity()) return;
+        
+        float val = getParamQuantity()->getValue();
+        float minVal = getParamQuantity()->getMinValue();
+        int idx = std::round(val - minVal);
+        if (idx < 0) idx = 0;
+        if (idx >= (int)entries.size()) idx = entries.size() - 1;
+        
+        std::string text = entries.empty() ? "" : entries[idx];
+        
+        std::shared_ptr<rack::window::Font> font = APP->window->uiFont;
+        if (font) {
+            nvgFontSize(args.vg, rack::mm2px(2.5f));
+            nvgFontFaceId(args.vg, font->handle);
+            nvgFillColor(args.vg, fgColor);
+            nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+            nvgText(args.vg, box.size.x / 2, box.size.y / 2 + 1.0f, text.c_str(), nullptr);
+            
+            // Draw downward arrow
+            nvgBeginPath(args.vg);
+            float ax = box.size.x - rack::mm2px(2.5f);
+            float ay = box.size.y / 2.0f + 1.0f;
+            float aw = rack::mm2px(0.8f);
+            float ah = rack::mm2px(0.6f);
+            nvgMoveTo(args.vg, ax - aw, ay - ah);
+            nvgLineTo(args.vg, ax + aw, ay - ah);
+            nvgLineTo(args.vg, ax, ay + ah);
+            nvgFillColor(args.vg, fgColor);
+            nvgFill(args.vg);
+        }
+    }
+
+    struct MenuActionItem : rack::ui::MenuItem {
+        CustomMenuWidget* widget;
+        int index;
+        float minVal;
+        void onAction(const rack::event::Action& e) override {
+            widget->getParamQuantity()->setValue(minVal + index);
+        }
+    };
+
+    void onButton(const rack::event::Button& e) override {
+        if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
+            e.consume(this);
+            rack::ui::Menu* menu = rack::createMenu();
+            menu->box.pos = getAbsoluteOffset(rack::Vec(0, box.size.y));
+            
+            float minVal = getParamQuantity()->getMinValue();
+            for (size_t i = 0; i < entries.size(); i++) {
+                MenuActionItem* item = new MenuActionItem();
+                item->text = entries[i];
+                item->widget = this;
+                item->index = i;
+                item->minVal = minVal;
+                item->rightText = rack::string::f(rack::math::clamp(getParamQuantity()->getValue(), minVal, getParamQuantity()->getMaxValue()) == minVal + i ? "✔" : "");
+                menu->addChild(item);
+            }
+        } else {
+            ParamWidget::onButton(e);
+        }
+    }
+};'''
+        structs.append(base_menu)
+        for label, items in menu_entries.items():
+            items_c = ", ".join(f'"{i}"' for i in items)
+            structs.append(
+                f'struct CustomMenuWidget_{label} : CustomMenuWidget {{\n'
+                f'    CustomMenuWidget_{label}() {{\n'
+                f'        entries = {{{items_c}}};\n'
+                f'    }}\n'
+                f'}};'
+            )
 
     if not structs:
         return ""
@@ -248,14 +360,15 @@ def _addchild_lines(components: List[ComponentPos], mn: str, panel_hp: int,
             else:
                 label_y = c.y + 4.5 + 2.2
 
-            ui_lbl = c.ui_label or c.label.replace("_", " ")
-            if ui_lbl.startswith("ATTENV "): ui_lbl = ui_lbl[7:]
-            elif ui_lbl.startswith("ATTEN "): ui_lbl = ui_lbl[6:]
-            elif ui_lbl.endswith(" ATTENV"): ui_lbl = ui_lbl[:-7]
-            elif ui_lbl.endswith(" ATTEN"): ui_lbl = ui_lbl[:-6]
-            font_sz = "2.4f" if c.kind == "param" else "2.0f"
-            pos_lbl = f"rack::mm2px(rack::Vec({c.x:.2f}f, {label_y:.2f}f))"
-            lines.append(f'        addChild(new TextLabel({pos_lbl}, "{ui_lbl}", {font_sz}));')
+            if kt != "CustomMenuWidget":
+                ui_lbl = c.ui_label or c.label.replace("_", " ")
+                if ui_lbl.startswith("ATTENV "): ui_lbl = ui_lbl[7:]
+                elif ui_lbl.startswith("ATTEN "): ui_lbl = ui_lbl[6:]
+                elif ui_lbl.endswith(" ATTENV"): ui_lbl = ui_lbl[:-7]
+                elif ui_lbl.endswith(" ATTEN"): ui_lbl = ui_lbl[:-6]
+                font_sz = "2.4f" if c.kind == "param" else "2.0f"
+                pos_lbl = f"rack::mm2px(rack::Vec({c.x:.2f}f, {label_y:.2f}f))"
+                lines.append(f'        addChild(new TextLabel({pos_lbl}, "{ui_lbl}", {font_sz}));')
 
     if ui_text.lower() in ("yes", "y", "true", "1"):
         # Add module name at the top center
@@ -350,7 +463,8 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
                    block_size: int,
                    ui_text: str = "yes",
                    polyphony: bool = False,
-                   custom_widgets: Optional[CustomWidgets] = None) -> str:
+                   custom_widgets: Optional[CustomWidgets] = None,
+                   menu_entries: Optional[Dict[str, List[str]]] = None) -> str:
 
     mn      = info.name
     api     = info.api
@@ -395,10 +509,16 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
         if p is None:
             cfg_lines.append(f'        configParam({c.label}_ID, 0.0f, 1.0f, 0.5f, "{c.label}");')
         else:
-            cfg_lines.append(
-                f'        configParam({c.label}_ID, {p.minimum}f, {p.maximum}f, '
-                f'{p.default}f, "{p.name}");'
-            )
+            if getattr(p, "step_size", 0.0) > 0.0:
+                cfg_lines.append(
+                    f'        configParam<StepQuantity>({c.label}_ID, {p.minimum}f, {p.maximum}f, '
+                    f'{p.default}f, "{p.name}")->stepSize = {p.step_size}f;'
+                )
+            else:
+                cfg_lines.append(
+                    f'        configParam({c.label}_ID, {p.minimum}f, {p.maximum}f, '
+                    f'{p.default}f, "{p.name}");'
+                )
     for c in audio_in_comps:
         cfg_lines.append(f'        configInput({c.label}_ID, "{c.label}");')
     for c in output_comps:
@@ -407,8 +527,12 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
 
     # Previous-param cache (only send on change)
     prev_param_decl = (
-        f"    float _prevParam[{n_knobs}] = {{}};"
-        if n_knobs > 0 else ""
+        f"    float _prevParam[{max(n_knobs, 1)}] = {{}};"
+    )
+    prev_param_init = (
+        f"        // Initialize _prevParam to an impossible value (-1e9f) so the very first\\n"
+        f"        // process block forces a sync of the current VCV knob states to the DSP.\\n"
+        f"        for (int i = 0; i < {max(n_knobs, 1)}; i++) _prevParam[i] = -1e9f;"
     )
 
     if polyphony:
@@ -614,7 +738,7 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
 
         ctx_check = "if (!_ctx) return;"
 
-    custom_widget_structs = gen_custom_widget_structs(custom_widgets)
+    custom_widget_structs = gen_custom_widget_structs(custom_widgets, menu_entries)
     addchild = _addchild_lines(components, mn, panel_hp, ui_text, custom_widgets)
 
     return f"""\
@@ -647,6 +771,17 @@ def gen_module_cpp(info: PatchInfo, panel_hp: int,
 #include "{info.header_file}"
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+struct StepQuantity : rack::engine::ParamQuantity {{
+    float stepSize = 1.0f;
+    void setValue(float v) override {{
+        if (stepSize > 0.0f) {{
+            float mn = getMinValue();
+            v = mn + std::round((v - mn) / stepSize) * stepSize;
+        }}
+        rack::engine::ParamQuantity::setValue(v);
+    }}
+}};
 
 struct {mn}Module : rack::Module {{
 
@@ -706,6 +841,7 @@ struct {mn}Module : rack::Module {{
 {config_block}
 
 {ctx_init}
+{prev_param_init}
     }}
 
     ~{mn}Module() {{
@@ -719,6 +855,7 @@ struct {mn}Module : rack::Module {{
     //       Rack rarely changes sample rate at runtime, but be aware.
     void onSampleRateChange(const SampleRateChangeEvent &e) override {{
 {ctx_sr}
+{prev_param_init}
     }}
 
     void process(const ProcessArgs & /*args*/) override {{
@@ -750,35 +887,32 @@ struct {mn}Module : rack::Module {{
 // Widget — headless (no SVG bundled)
 // ─────────────────────────────────────────────────────────────────────────────
 
-{
-"""
-struct TextLabel : rack::widget::TransparentWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+struct TextLabel : rack::widget::TransparentWidget {{
     std::string text;
     float fontSizeMm;
-    TextLabel(rack::math::Vec pos, std::string text, float fontSizeMm = 2.4f) {
+    TextLabel(rack::math::Vec pos, std::string text, float fontSizeMm = 2.4f) {{
         this->box.pos = pos;
         this->box.size = rack::mm2px(rack::math::Vec(20.f, 5.f));
         this->text = text;
         this->fontSizeMm = fontSizeMm;
-    }
-    void draw(const rack::widget::Widget::DrawArgs& args) override {
+    }}
+    void draw(const rack::widget::Widget::DrawArgs& args) override {{
         std::shared_ptr<rack::window::Font> font = APP->window->uiFont;
-        if (font) {
+        if (font) {{
             nvgFontSize(args.vg, rack::mm2px(fontSizeMm));
             nvgFontFaceId(args.vg, font->handle);
             bool isDark = rack::settings::preferDarkPanels;
-            if (isDark) {
+            if (isDark) {{
                 nvgFillColor(args.vg, nvgRGBA(255, 255, 255, 255));
-            } else {
+            }} else {{
                 nvgFillColor(args.vg, nvgRGBA(0, 0, 0, 255));
-            }
+            }}
             nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
             nvgText(args.vg, 0, 0, text.c_str(), nullptr);
-        }
-    }
-};
-""" if ui_text.lower() in ("yes", "y", "true", "1") else ""
-}
+        }}
+    }}
+}};
 {custom_widget_structs}struct {mn}Widget : rack::ModuleWidget {{
     explicit {mn}Widget({mn}Module *module) {{
         setModule(module);
@@ -925,11 +1059,12 @@ def gen_panel_svg(module_name: str, panel_hp: int,
 
 def generate_all(info: PatchInfo, panel_hp: int, components: List[ComponentPos],
                  block_size: int, ui_text: str, polyphony: bool,
-                 hvcc_src_rel: str, hvcc_dir: Path, custom_widgets: Optional[CustomWidgets]) -> Dict[str, str]:
+                 hvcc_src_rel: str, hvcc_dir: Path, custom_widgets: Optional[CustomWidgets],
+                 menu_entries: Optional[Dict[str, List[str]]] = None) -> Dict[str, str]:
     files = {
         "src/plugin.hpp": gen_plugin_hpp(info.name),
         f"src/plugin.cpp": gen_plugin_cpp(info.name, info.name, info.name),
-        f"src/{info.name}.cpp": gen_module_cpp(info, panel_hp, components, block_size, ui_text, polyphony, custom_widgets),
+        f"src/{info.name}.cpp": gen_module_cpp(info, panel_hp, components, block_size, ui_text, polyphony, custom_widgets, menu_entries),
         "Makefile": gen_makefile(info.name, hvcc_src_rel, block_size, hvcc_dir),
     }
     

@@ -91,14 +91,26 @@ def apply_pd_bounds(params: List[HvParam], pd_bounds: dict) -> None:
 def parse_smart_name(param: HvParam) -> None:
     name = param.name
     matched_prefix = ""
-    for pfx in _UI_PREFIXES:
-        if name.startswith(pfx + "_"):
-            matched_prefix = pfx
-            break
+    step_match = re.match(r"^step(\d+)_", name)
+    if step_match:
+        matched_prefix = step_match.group(0)[:-1]
+        param.ui_type = "step_knob"
+        param.step_size = float(step_match.group(1))
+    else:
+        for pfx in _UI_PREFIXES:
+            if name == pfx:
+                matched_prefix = pfx
+                break
+            elif name.startswith(pfx + "_"):
+                matched_prefix = pfx
+                break
     if not matched_prefix:
         return
 
-    remainder = name[len(matched_prefix) + 1:]
+    if matched_prefix == name:
+        remainder = ""
+    else:
+        remainder = name[len(matched_prefix) + 1:]
     adc_match = _ADC_SUFFIX_RE.search(remainder)
     adc_num = 0
     if adc_match:
@@ -107,10 +119,18 @@ def parse_smart_name(param: HvParam) -> None:
 
     core = remainder
     if not core:
-        print(f"[smart] WARNING: '{param.name}' has empty core name after prefix strip — treating as plain param")
+        if matched_prefix == "menu":
+            param.ui_type = "menu"
+            param.core_name = ""
+            param.adc_map = 0
+            param.enum_label = "MENU"
+            print(f"[smart] '{param.name}' -> ui=menu      core=           adc_map=0  enum=MENU")
+        else:
+            print(f"[smart] WARNING: '{param.name}' has empty core name after prefix strip — treating as plain param")
         return
 
-    param.ui_type   = matched_prefix
+    if not param.ui_type:
+        param.ui_type = matched_prefix
     param.core_name = core
     param.adc_map   = adc_num
     param.enum_label = sanitize_identifier(core).upper()

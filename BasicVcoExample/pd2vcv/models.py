@@ -16,6 +16,7 @@ class HvParam:
     ui_type: str = ""       # "base" | "attenv" | "atten" | "" (plain)
     core_name: str = ""     # shared grouping name, e.g. "cutoff"
     adc_map: int = 0        # >0 means this param's column owns that adc~ input
+    step_size: float = 0.0  # >0 means this param snaps to intervals
 
     enum_label: str = ""    # overridden C++ enum label (stripped of prefix/suffix)
 
@@ -65,6 +66,7 @@ class CustomWidgets:
     knob_small: bool = False      # knob_small.svg -> replaces RoundSmallBlackKnob
     knob_trim: bool = False       # knob_trim.svg  -> replaces Trimpot
     knob_default: bool = False    # knob_default.svg -> replaces RoundBlackKnob
+    step_knob: bool = False       # step_knob.svg -> replaces StepKnob
     # Buttons & switches
     button: bool = False          # button.svg + button_pressed.svg
     trigger: bool = False         # trigger.svg + trigger_pressed.svg
@@ -90,6 +92,7 @@ class CustomWidgets:
             "knob_small.svg": "knob_small",
             "knob_trim.svg": "knob_trim",
             "knob_default.svg": "knob_default",
+            "step_knob.svg": "step_knob",
             "button.svg": "button",
             "trigger.svg": "trigger",
             "switch_on.svg": "switch_on",
@@ -135,4 +138,6 @@ _UI_PREFIXES = {
     "button": "VCVButton",            # momentary button (gate: 1.0 while held, 0.0 on release)
     "trigger":"VCVTrigger",           # momentary trigger (sends 1.0 on press, ignores release)
     "switch": "CKSS",                 # 2-position toggle switch (0.0 / 1.0)
+    "step_knob": "StepKnob",          # stepped rotary parameter
+    "menu": "CustomMenuWidget",       # click to open dropdown menu
 }

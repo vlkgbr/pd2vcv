@@ -146,7 +146,7 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
     n_out_jacks = len(unmapped_out)
 
     n_smart_cols = len(columns)
-    n_plain      = len(plain_params)
+    n_plain      = len([p for p in plain_params if p.ui_type != "menu"])
     n_cols_total = n_smart_cols + n_plain
 
     col_width_mm  = MARGIN * 2 + max(n_cols_total - 1, 0) * COL_SEP
@@ -172,7 +172,7 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
         cx = round(x0_cols + col_i * COL_SEP, 2)
 
         def _sort_key(p: HvParam):
-            order = {"base": 0, "atten": 1, "attenv": 1, "button": 2, "trigger": 2, "switch": 2}
+            order = {"menu": -1, "base": 0, "step_knob": 0, "atten": 1, "attenv": 1, "button": 2, "trigger": 2, "switch": 2}
             return order.get(p.ui_type, 3)
         params_in_col.sort(key=_sort_key)
 
@@ -181,9 +181,12 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
 
         y_cursor = Y_ATTEN
         for p in params_in_col:
-            if p.ui_type == "base":
+            if p.ui_type == "menu":
+                y = 12.0
+                kt = _UI_PREFIXES.get("menu", "CustomMenuWidget")
+            elif p.ui_type in ("base", "step_knob"):
                 y = Y_BASE
-                kt = _UI_PREFIXES["base"]
+                kt = _UI_PREFIXES.get(p.ui_type, "RoundHugeBlackKnob")
             elif p.ui_type in ("atten", "attenv", "button", "trigger", "switch"):
                 y = y_cursor
                 y_cursor += 14.0
@@ -196,10 +199,10 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
             lbl = p.enum_label or sanitize_identifier(p.core_name).upper()
             ui_lbl_clean = lbl.replace("_", " ")
 
-            if p.ui_type in ("atten", "attenv", "button", "trigger", "switch"):
+            if p.ui_type in ("atten", "attenv", "button", "trigger", "switch", "menu"):
                 lbl = lbl + "_" + p.ui_type.upper()
 
-            if p.ui_type in ("button", "trigger", "switch"):
+            if p.ui_type in ("button", "trigger", "switch", "menu"):
                 display_lbl = ui_lbl_clean
             else:
                 display_lbl = lbl.replace("_", " ")
@@ -222,6 +225,7 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
                 x=cx, y=round(Y_MAPPED_IN, 2),
                 index=col_adc - 1,
                 knob_type="",
+                port_type="cvi",
                 ui_label=sanitize_identifier(core).upper().replace("_", " ") + " IN",
             ))
 
@@ -232,19 +236,33 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
                 x=cx, y=round(Y_MAPPED_OUT, 2),
                 index=col_dac - 1,
                 knob_type="",
+                port_type="cvo",
                 ui_label=sanitize_identifier(core).upper().replace("_", " ") + " OUT",
             ))
 
+    menu_unmapped_y = 12.0
     for plain_i, p in enumerate(plain_params):
-        cx = round(x0_cols + (n_smart_cols + plain_i) * COL_SEP, 2)
-        lbl = dedup_label(p.safe_name.upper())
+        if p.ui_type == "menu":
+            cx = W / 2.0
+            y = menu_unmapped_y
+            menu_unmapped_y += 14.0
+            kt = "CustomMenuWidget"
+            lbl = dedup_label(p.safe_name.upper() + "_MENU")
+            display_lbl = p.safe_name.replace("_", " ").upper()
+        else:
+            cx = round(x0_cols + (n_smart_cols + plain_i) * COL_SEP, 2)
+            y = Y_BASE
+            kt = "RoundBlackKnob"
+            lbl = dedup_label(p.safe_name.upper())
+            display_lbl = lbl.replace("_", " ")
+
         p.enum_label = lbl
         components.append(ComponentPos(
             kind="param", label=lbl,
-            x=cx, y=round(Y_BASE, 2),
+            x=cx, y=round(y, 2),
             index=param_idx,
-            knob_type="RoundBlackKnob",
-            ui_label=lbl.replace("_", " "),
+            knob_type=kt,
+            ui_label=display_lbl,
         ))
         param_idx += 1
 

@@ -115,12 +115,14 @@ def main() -> None:
         print(f"[res]   res/ folder not found at {res_dir} — using Rack built-in widgets")
 
     # ── Apply layout overrides if provided ───────────────────────────────────
+    menu_entries = {}
     if args.layout_file:
         layout_path = Path(args.layout_file).expanduser().resolve()
         if layout_path.exists():
             try:
                 layout_data = json.loads(layout_path.read_text())
                 components = apply_layout_overrides(components, layout_data)
+                menu_entries = layout_data.get("menus", {})
             except (json.JSONDecodeError, OSError) as e:
                 print(f"[layout] WARNING: Could not load layout file: {e}")
         else:
@@ -153,6 +155,8 @@ def main() -> None:
                     "index": c.index,
                     "ui_label": c.ui_label,
                     "port_type": c.port_type,
+                    "min": getattr(info.params[c.index], "minimum", 0.0) if c.kind == "param" and c.index < len(info.params) else 0.0,
+                    "max": getattr(info.params[c.index], "maximum", 0.0) if c.kind == "param" and c.index < len(info.params) else 0.0,
                 }
                 for c in components
             ],
@@ -175,6 +179,13 @@ def main() -> None:
             shutil.copy2(res_dir / "panel.svg", out_dir / "res" / f"{args.module_name}-dark.svg")
             print(f"[res]   No dark panel — using panel.svg for both themes")
 
+    print(f"\n[layout] Generated {len(components)} components for {panel_hp} HP panel:")
+    for c in components:
+        port_info = f" port='{c.port_type}'" if c.port_type else ""
+        knob_info = f" knob='{c.knob_type}'" if c.knob_type else ""
+        print(f"  - [{c.kind.upper():<6}] {c.label:<15} (UI: '{c.ui_label}'){port_info}{knob_info}")
+    print()
+
     gen_files = generate_all(
         info=info,
         panel_hp=panel_hp,
@@ -184,7 +195,8 @@ def main() -> None:
         polyphony=(args.polyphony.lower() in ("yes", "y")),
         hvcc_src_rel=args.hvcc_src,
         hvcc_dir=hvcc_dir,
-        custom_widgets=custom_widgets
+        custom_widgets=custom_widgets,
+        menu_entries=menu_entries
     )
     
     files = {}
@@ -195,7 +207,7 @@ def main() -> None:
     # Copy widget SVGs from res/ to output res/ folder
     if custom_widgets and res_dir and res_dir.is_dir():
         widget_svgs = [
-            "knob_large.svg", "knob_small.svg", "knob_trim.svg", "knob_default.svg",
+            "knob_large.svg", "knob_small.svg", "knob_trim.svg", "knob_default.svg", "step_knob.svg",
             "button.svg", "button_pressed.svg",
             "trigger.svg", "trigger_pressed.svg",
             "switch_on.svg", "switch_off.svg",
