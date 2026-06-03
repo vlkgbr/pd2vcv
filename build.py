@@ -368,7 +368,7 @@ def main():
         print(f"ERROR: Version '{version}' must start with '2.' for VCV Rack 2. Aborting.")
         sys.exit(1)
 
-    SCRIPT_DIR = Path(__file__).resolve().parent
+    SCRIPT_DIR = Path(__file__).parent.resolve()
     HVCC_DIR = Path(args.hvcc_dir).resolve() if args.hvcc_dir else (SCRIPT_DIR / auto_detect_hvcc_dir("c"))
 
     if not HVCC_DIR.exists():
