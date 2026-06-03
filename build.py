@@ -368,8 +368,14 @@ def main():
         print(f"ERROR: Version '{version}' must start with '2.' for VCV Rack 2. Aborting.")
         sys.exit(1)
 
-    SCRIPT_DIR = Path(__file__).parent.resolve()
+    SCRIPT_DIR = Path(__file__).resolve().parent
     HVCC_DIR = Path(args.hvcc_dir).resolve() if args.hvcc_dir else (SCRIPT_DIR / auto_detect_hvcc_dir("c"))
+
+    if not HVCC_DIR.exists():
+        print(f"ERROR: HVCC directory '{HVCC_DIR}' does not exist.")
+        print("       Did you export your patch from PlugData or run hvcc?")
+        sys.exit(1)
+
     OUT_DIR = SCRIPT_DIR / "rack_plugin"
     
     # This path must match the C source directory expected by the generated Makefile template in pd2vcv/writer.py
@@ -480,7 +486,8 @@ def main():
         elif cache_valid and args.non_interactive:
             generator_cmd.extend(["--layout-file", str(layout_cache_path)])
         else:
-            print("ERROR: Stale or invalid layout cache in non-interactive mode. Aborting.")
+            print(f"ERROR: Cannot run non-interactively. Layout cache at '{layout_cache_path.name}' is missing or invalid.")
+            print("       Run once in interactive mode to generate/fix the layout cache.")
             sys.exit(1)
 
     print(f"Running generator: {' '.join(generator_cmd)}\n")
@@ -494,9 +501,6 @@ def main():
     print(f"\n  Copying Heavy C sources -> {OUT_DIR.name}/{HVCC_SRC}/")
     hvcc_dest = OUT_DIR / HVCC_SRC
     hvcc_dest.mkdir(parents=True, exist_ok=True)
-    if not HVCC_DIR.exists():
-        print(f"ERROR: {HVCC_DIR} does not exist. Did you export your patch from PlugData?")
-        sys.exit(1)
         
     actual_c_dir = HVCC_DIR / "c" if (HVCC_DIR / "c").is_dir() else HVCC_DIR
 
