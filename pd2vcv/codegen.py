@@ -37,7 +37,7 @@ def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = N
             if attr == "_switch":
                 if custom_widgets.switch_on and custom_widgets.switch_off:
                     return custom_cls
-            elif getattr(custom_widgets, attr, False):
+            elif custom_widgets and getattr(custom_widgets, attr, False):
                 return custom_cls
         # Fallback: VCVTrigger -> VCVButton in Rack
         if kt == "StepKnob": kt = "RoundBlackKnob"
@@ -47,25 +47,25 @@ def _resolve_widget(c: ComponentPos, custom_widgets: Optional[CustomWidgets] = N
     elif c.kind == "input":
         # Port type resolution chain: typed -> generic -> built-in
         if c.port_type in ("cvi",):
-            if custom_widgets.port_cv_in:
+            if custom_widgets and custom_widgets.port_cv_in:
                 return "CustomCvInputPort"
         elif c.port_type in ("audioi", "inl", "inr"):
-            if custom_widgets.port_audio_in:
+            if custom_widgets and custom_widgets.port_audio_in:
                 return "CustomAudioInputPort"
         # Generic fallback
-        if custom_widgets.port_in:
+        if custom_widgets and custom_widgets.port_in:
             return "CustomInputPort"
         return "rack::PJ301MPort"
 
     elif c.kind == "output":
         if c.port_type in ("cvo",):
-            if custom_widgets.port_cv_out:
+            if custom_widgets and custom_widgets.port_cv_out:
                 return "CustomCvOutputPort"
         elif c.port_type in ("audioo", "outl", "outr"):
-            if custom_widgets.port_audio_out:
+            if custom_widgets and custom_widgets.port_audio_out:
                 return "CustomAudioOutputPort"
         # Generic fallback
-        if custom_widgets.port_out:
+        if custom_widgets and custom_widgets.port_out:
             return "CustomOutputPort"
         return "rack::PJ301MPort"
 

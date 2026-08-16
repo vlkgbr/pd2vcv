@@ -55,16 +55,18 @@ def parse_pd_params(pd_file: Path) -> tuple:
         bounds[name] = (lo, hi, default)
         print(f"[pd]    {name:30s} min={lo}  max={hi}  default={default}")
 
-    mapped_dacs_by_core: dict = {}
+    mapped_cores_by_dac: dict = {}
     for m in _PD_SEND_RE.finditer(text):
         send_name = m.group(1)
         dac_match = _DAC_SUFFIX_RE.search(send_name)
         if dac_match:
             dac_idx  = int(dac_match.group(1))
             core     = send_name[:dac_match.start()]
-            if dac_idx in mapped_dacs_by_core:
-                print(f"[pd]    WARNING: dac~ {dac_idx} claimed by both '{mapped_dacs_by_core[dac_idx]}' and '{core}' — using '{core}'")
-            mapped_dacs_by_core[dac_idx] = core
+            if dac_idx in mapped_cores_by_dac:
+                print(f"[pd]    WARNING: dac~ {dac_idx} claimed by both '{mapped_cores_by_dac[dac_idx]}' and '{core}' — using '{core}'")
+            if core in dac_labels:
+                print(f"[pd]    WARNING: core name '{core}' used for both dac~ {dac_labels[core]} and dac~ {dac_idx} — overwriting with {dac_idx}")
+            mapped_cores_by_dac[dac_idx] = core
             dac_labels[core] = dac_idx
             print(f"[pd]    [s] '{send_name}' -> output label '{core}' -> dac~ {dac_idx}")
 

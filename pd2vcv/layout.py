@@ -162,6 +162,9 @@ def _smart_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Componen
 
     seen_labels: dict[str, int] = {}
     def dedup_label(l: str) -> str:
+        # Note: The first occurrence stores 0 and remains unchanged. 
+        # The first duplicate gets suffix _1, the second _2, etc. 
+        # This is intentional to keep the primary label clean.
         if l in seen_labels:
             seen_labels[l] += 1
             return f"{l}_{seen_labels[l]}"
@@ -340,6 +343,9 @@ def _classic_layout(info: PatchInfo, dac_labels: dict) -> Tuple[int, List[Compon
 
     seen_labels: dict[str, int] = {}
     def dedup_label(l: str) -> str:
+        # Note: The first occurrence stores 0 and remains unchanged. 
+        # The first duplicate gets suffix _1, the second _2, etc. 
+        # This is intentional to keep the primary label clean.
         if l in seen_labels:
             seen_labels[l] += 1
             return f"{l}_{seen_labels[l]}"

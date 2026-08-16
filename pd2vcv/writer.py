@@ -58,9 +58,8 @@ def main() -> None:
                          "Used by build.py for interactive placement.")
     ap.add_argument("--layout-file", default=None,
                     help="Path to a .pd2vcv_layout.json file with saved position overrides.")
-    ap.add_argument("--res-dir",     default="res",
-                    help="Path to the SVG resource folder (default: res/ relative to script). "
-                         "Always scanned for custom widget and panel SVGs.")
+    ap.add_argument("--res-dir",     default=str(Path(__file__).parent.parent / "res"),
+                    help="Directory containing SVG assets (default: ../res). Always scanned for custom widget and panel SVGs.")
     args = ap.parse_args()
 
     hvcc_dir    = Path(args.hvcc_dir).expanduser().resolve()
@@ -101,8 +100,8 @@ def main() -> None:
 
     # ── Scan res/ folder (always active) ────────────────────────────────────────
     res_dir = Path(args.res_dir).expanduser().resolve()
-    if not res_dir.is_absolute():
-        res_dir = (Path(__file__).parent / args.res_dir).resolve()
+    if not res_dir.exists():
+        res_dir = (Path(__file__).parent.parent / args.res_dir).resolve()
     custom_widgets: Optional[CustomWidgets] = None
     if res_dir.is_dir():
         custom_widgets = CustomWidgets.from_dir(res_dir)

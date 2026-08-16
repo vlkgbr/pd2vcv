@@ -369,6 +369,11 @@ def main():
         sys.exit(1)
 
     SCRIPT_DIR = Path(__file__).parent.resolve()
+    
+    if args.non_interactive and not args.hvcc_dir:
+        print("ERROR: --hvcc-dir is required in --non-interactive mode.")
+        sys.exit(1)
+        
     HVCC_DIR = Path(args.hvcc_dir).resolve() if args.hvcc_dir else (SCRIPT_DIR / auto_detect_hvcc_dir("c"))
 
     if not HVCC_DIR.exists():
@@ -402,7 +407,10 @@ def main():
             rack_platform = "mac-x64"
         install_base = Path.home() / "Library" / "Application Support" / "Rack2" / f"plugins-{rack_platform}"
     elif system == "Windows" or os.environ.get("MSYSTEM", "").startswith("MINGW"):
-        rack_platform = "win-x64"
+        if "arm" in machine or "aarch64" in machine:
+            rack_platform = "win-arm64"
+        else:
+            rack_platform = "win-x64"
         install_base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "Rack2" / f"plugins-{rack_platform}"
     else:
         rack_platform = "lin-x64"
