@@ -201,7 +201,11 @@ Pull requests, code reviews, and refactoring are welcome. The smart-naming conve
 
 ## Note on AI and Development
 
-The concept, naming conventions, layout engine rules, and signal routing logic are my own design. The Python and C++ implementation was written with heavy use of AI coding assistants. I'm a musician and PD patcher, not a programmer — PRs and code reviews are welcome.
+I am a musician and a Pure Data patcher, not a C++ or Python programmer. The concept, the smart-naming conventions, the UI layout engine rules, and the signal routing logic are entirely my own design.
+
+To bring this idea to life, I relied heavily on AI coding assistants to write the actual Python and C++ syntax. My goal was simply to bridge a gap between PD and VCV Rack that I desperately wanted for my own music, and I used the tools available to me to build it.
+
+Because I am not a native C++ developer, the codebase might have structural quirks. Pull requests, code reviews, and refactoring are incredibly welcome.
 
 ---
 
